@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Distribuidora Acero - Sistema de Rendiciones</title>
+
+  <style>
+    :root{
+      --bg:#0f2333;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+
+      --brand:#f28c28;
+      --green:#16a34a;
+      --blue:#2563eb;
+      --gray:#e5e7eb;
+      --grayText:#111827;
+
+      --radius:18px;
+    }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: radial-gradient(1200px 800px at 30% 10%, rgba(242,140,40,.25), transparent 55%),
+                  radial-gradient(900px 700px at 70% 20%, rgba(37,99,235,.18), transparent 55%),
+                  var(--bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+      color:var(--text);
+      padding:16px;
+    }
+
+    .container{
+      width:min(520px, 100%);
+      background:var(--card);
+      border-radius:var(--radius);
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      padding:22px;
+    }
+
+    header{
+      text-align:center;
+      padding:6px 6px 14px 6px;
+      border-bottom:1px solid var(--line);
+      margin-bottom:16px;
+    }
+    header h1{
+      margin:0;
+      font-size: clamp(1.1rem, 3.8vw, 1.45rem);
+      letter-spacing:.03em;
+      font-weight:800;
+      color:var(--brand);
+      text-transform:uppercase;
+    }
+    header h2{
+      margin:6px 0 0 0;
+      font-size:.85rem;
+      color:var(--muted);
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+
+    .step{ display:none; }
+    .step.active{ display:block; animation:fade .18s ease-out; }
+    @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+
+    label{
+      display:block;
+      margin:12px 0 8px;
+      font-weight:750;
+      font-size:1rem;
+    }
+    input, select{
+      width:100%;
+      padding:12px 12px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      font-size:1rem;
+      outline:none;
+      background:#fff;
+    }
+    input:focus, select:focus{
+      border-color: rgba(37,99,235,.55);
+      box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+    }
+
+    .hint{
+      margin-top:8px;
+      margin-bottom:10px;
+      color:var(--muted);
+      font-size:.9rem;
+      line-height:1.35;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid var(--line);
+      background:#f9fafb;
+      padding:8px 10px;
+      border-radius:999px;
+      font-size:.92rem;
+      color:#111827;
+      margin: 6px 0 10px;
+      max-width:100%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .dot{
+      width:8px; height:8px; border-radius:50%;
+      background:var(--brand);
+      flex:0 0 auto;
+    }
+
+    .itemsCard{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+      margin-top:8px;
+    }
+    .itemsTitle{
+      margin:0 0 8px 0;
+      font-size:.95rem;
+      font-weight:800;
+      color:#111827;
+    }
+    ul.items{
+      margin:0;
+      padding-left:18px;
+      color:#111827;
+    }
+    ul.items li{
+      margin:6px 0;
+      line-height:1.3;
+      color:#111827;
+    }
+    .mutedSmall{
+      color:var(--muted);
+      font-size:.9rem;
+      margin-top:6px;
+    }
+
+    /* BOTONES */
+    .btnRow{
+      display:flex;
+      flex-direction:column;
+      gap:12px;         /* 👈 separación real entre botones */
+      margin-top:14px;
+    }
+    .btn{
+      width:100%;
+      padding:13px 14px;
+      border:none;
+      border-radius:14px;
+      font-weight:800;
+      font-size:1rem;
+      cursor:pointer;
+      transition: transform .05s ease, filter .2s ease;
+      user-select:none;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btnPrimary{ background:var(--brand); color:white; }
+    .btnGreen{ background:var(--green); color:white; }
+    .btnBlue{ background:var(--blue); color:white; }
+    .btnGhost{ background:var(--gray); color:var(--grayText); }
+
+    .btn:hover{ filter: brightness(.98); }
+
+    /* Footer */
+    .footer{
+      margin-top:16px;
+      padding-top:12px;
+      border-top:1px solid var(--line);
+      text-align:center;
+      color:var(--muted);
+      font-size:.9rem;
+    }
+
+    /* Tablet+ (un poquito más aire) */
+    @media (min-width: 768px){
+      .container{ padding:26px; }
+      .btnRow{ gap:14px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Distribuidora Acero</h1>
+      <h2>Sistema de rendiciones</h2>
+    </header>
+
+    <!-- Paso 1 -->
+    <div class="step active" id="step1">
+      <label>Modalidad</label>
+      <select id="modalidad">
+        <option value="LM">LM</option>
+        <option value="GIGANTE">GIGANTE</option>
+        <option value="OBRAS">OBRAS</option>
+      </select>
+
+      <div class="btnRow">
+        <button class="btn btnPrimary" onclick="goTo(2)">Siguiente</button>
+      </div>
+    </div>
+
+    <!-- Paso 2 -->
+    <div class="step" id="step2">
+      <label>Cliente</label>
+      <input type="text" id="cliente" placeholder="Nombre del cliente..." />
+
+      <div class="hint">
+        Después vas a poder cargar varios ítems (efectivo, transf., cheques, etc.) para este mismo cliente.
+      </div>
+
+      <div class="btnRow">
+        <button class="btn btnPrimary" onclick="startClient()">Siguiente</button>
+        <button class="btn btnGhost" onclick="goTo(1)">Volver</button>
+      </div>
+    </div>
+
+    <!-- Paso 3 -->
+    <div class="step" id="step3">
+      <div class="badge" id="clientBadge"><span class="dot"></span><span></span></div>
+
+      <label>Importe del ítem</label>
+      <input type="number" id="importe" placeholder="0.00" inputmode="decimal" />
+
+      <label>Medio</label>
+      <select id="medio">
+        <option value="EFECTIVO">Efectivo</option>
+        <option value="CHEQUES">Cheques</option>
+        <option value="ECHEQ">E-cheq</option>
+        <option value="TRANSF.">Transferencia</option>
+        <option value="RETENCIONES">Retenciones</option>
+        <option value="AJUSTE">Ajuste de centavos</option>
+      </select>
+
+      <div class="btnRow">
+        <button class="btn btnGreen" onclick="addItem()">+ Agregar ítem</button>
+        <button class="btn btnGhost" onclick="goTo(2)">Volver</button>
+      </div>
+    </div>
+
+    <!-- Paso 4 -->
+    <div class="step" id="step4">
+      <div class="badge" id="clientBadge2"><span class="dot"></span><span></span></div>
+
+      <div class="itemsCard">
+        <div class="itemsTitle">Ítems cargados para este cliente</div>
+        <div id="itemsList"></div>
+      </div>
+
+      <div class="btnRow">
+        <button class="btn btnGreen" onclick="goTo(3)">+ Agregar otro ítem a este cliente</button>
+        <button class="btn btnPrimary" onclick="finishClient()">✅ Terminar cliente y cargar otro</button>
+        <button class="btn btnBlue" onclick="generateExcel()">Finalizar y Descargar Planilla</button>
+        <button class="btn btnGhost" onclick="goTo(3)">Volver</button>
+      </div>
+    </div>
+
+    <div class="footer">
+      Clientes listos en esta sesión: <b><span id="count">0</span></b>
+    </div>
+  </div>
+
+<script>
+  let clients = [];
+  let currentClient = null;
+
+  function goTo(step) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step' + step).classList.add('active');
+  }
+
+  function startClient() {
+    const modal = document.getElementById('modalidad').value;
+    const cli = (document.getElementById('cliente').value || "").trim().toUpperCase();
+
+    if (!cli) {
+      alert("Por favor, ingresá el nombre del cliente.");
+      return;
+    }
+
+    currentClient = { modal, cli, items: [] };
+    updateBadges();
+    document.getElementById('importe').value = "";
+    document.getElementById('medio').value = "EFECTIVO";
+    goTo(3);
+  }
+
+  function updateBadges() {
+    const txt = currentClient ? `${currentClient.modal} · ${currentClient.cli}` : "";
+    setBadge("clientBadge", txt);
+    setBadge("clientBadge2", txt);
+  }
+
+  function setBadge(id, text){
+    const badge = document.getElementById(id);
+    if (!badge) return;
+    const spans = badge.querySelectorAll("span");
+    if (spans.length >= 2) spans[1].textContent = text;
+    else badge.textContent = text;
+  }
+
+  function addItem() {
+    if (!currentClient) {
+      alert("Primero cargá un cliente.");
+      return;
+    }
+
+    const imp = parseFloat(document.getElementById('importe').value);
+    const med = document.getElementById('medio').value;
+
+    if (isNaN(imp) || imp === 0) {
+      alert("Ingresá un importe válido.");
+      return;
+    }
+
+    currentClient.items.push({ med, imp });
+
+    document.getElementById('importe').value = "";
+    document.getElementById('medio').value = "EFECTIVO";
+
+    renderItems();
+    goTo(4);
+  }
+
+  function renderItems() {
+    const box = document.getElementById('itemsList');
+    if (!currentClient || currentClient.items.length === 0) {
+      box.innerHTML = "<div class='mutedSmall'>No hay ítems todavía.</div>";
+      return;
+    }
+
+    const ul = document.createElement("ul");
+    ul.className = "items";
+
+    currentClient.items.forEach((it, idx) => {
+      const li = document.createElement("li");
+      li.textContent = `${idx+1}. ${it.med} — $ ${Number(it.imp).toLocaleString("es-AR")}`;
+      ul.appendChild(li);
+    });
+
+    box.innerHTML = "";
+    box.appendChild(ul);
+  }
+
+  function finishClient() {
+    if (!currentClient || currentClient.items.length === 0) {
+      alert("Agregá al menos un ítem para este cliente.");
+      return;
+    }
+
+    clients.push(currentClient);
+    document.getElementById('count').innerText = clients.length;
+
+    currentClient = null;
+    document.getElementById('cliente').value = "";
+    goTo(1);
+  }
+
+  async function generateExcel() {
+    if (currentClient && currentClient.items.length > 0) {
+      clients.push(currentClient);
+      currentClient = null;
+      document.getElementById('count').innerText = clients.length;
+    }
+
+    if (clients.length === 0) {
+      alert("No hay clientes cargados.");
+      return;
+    }
+
+    const resp = await fetch("/generar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clients })
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      alert("Error generando Excel:\n" + txt);
+      return;
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rendicion-${new Date().toLocaleDateString("es-AR").replaceAll("/","-")}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    clients = [];
+    currentClient = null;
+    document.getElementById('count').innerText = "0";
+    document.getElementById('cliente').value = "";
+    goTo(1);
+  }
+</script>
+</body>
+</html>
