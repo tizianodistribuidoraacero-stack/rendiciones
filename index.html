@@ -236,7 +236,30 @@
       <div class="badge" id="clientBadge"><span class="dot"></span><span></span></div>
 
       <label>Importe del ítem</label>
-      <input type="text" id="importe" placeholder="0,00" inputmode="decimal" oninput="this.value=this.value.replace(/[^0-9.,]/g,'')" />
+      <div id="importeDisplay" style="
+        width:100%; padding:14px 16px; border:1px solid var(--line);
+        border-radius:12px; font-size:1.5rem; font-weight:700;
+        background:#f9fafb; color:#111827; min-height:52px;
+        letter-spacing:.02em; text-align:right;
+      ">0</div>
+      <input type="hidden" id="importe" value="" />
+      <div id="numpad" style="
+        display:grid; grid-template-columns:repeat(3,1fr);
+        gap:8px; margin-top:10px;
+      ">
+        <button class="btn btnGhost npBtn" onclick="npPress('7')">7</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('8')">8</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('9')">9</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('4')">4</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('5')">5</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('6')">6</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('1')">1</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('2')">2</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('3')">3</button>
+        <button class="btn btnGhost npBtn" onclick="npPress(',')">&#44;</button>
+        <button class="btn btnGhost npBtn" onclick="npPress('0')">0</button>
+        <button class="btn btnGhost npBtn" onclick="npBack()">⌫</button>
+      </div>
 
       <label>Medio</label>
       <select id="medio">
@@ -264,7 +287,7 @@
       </div>
 
       <div class="btnRow">
-        <button class="btn btnGreen" onclick="goTo(3)">+ Agregar otro ítem a este cliente</button>
+        <button class="btn btnGreen" onclick="resetNumpad(); goTo(3)">+ Agregar otro ítem a este cliente</button>
         <button class="btn btnPrimary" onclick="finishClient()">✅ Terminar cliente y cargar otro</button>
         <button class="btn btnBlue" onclick="generateExcel()">Finalizar y Descargar Planilla</button>
         <button class="btn btnGhost" onclick="goTo(3)">Volver</button>
@@ -315,14 +338,42 @@
     else badge.textContent = text;
   }
 
+  let npValue = "";
+
+  function npPress(ch) {
+    if (ch === ',' && npValue.includes(',')) return; // solo una coma
+    if (ch === ',' && npValue === "") npValue = "0";
+    // máximo 2 decimales
+    const commaIdx = npValue.indexOf(',');
+    if (commaIdx !== -1 && npValue.length - commaIdx > 2) return;
+    if (npValue === "0" && ch !== ',') npValue = ch;
+    else npValue += ch;
+    updateNpDisplay();
+  }
+
+  function npBack() {
+    npValue = npValue.slice(0, -1);
+    updateNpDisplay();
+  }
+
+  function updateNpDisplay() {
+    const disp = document.getElementById('importeDisplay');
+    disp.textContent = npValue || "0";
+    document.getElementById('importe').value = npValue.replace(',', '.');
+  }
+
+  function resetNumpad() {
+    npValue = "";
+    updateNpDisplay();
+  }
+
   function addItem() {
     if (!currentClient) {
       alert("Primero cargá un cliente.");
       return;
     }
 
-    const rawImp = document.getElementById('importe').value.trim().replace(/\./g, '').replace(',', '.');
-    const imp = parseFloat(rawImp);
+    const imp = parseFloat((document.getElementById('importe').value || "").replace(',', '.'));
     const med = document.getElementById('medio').value;
 
     if (isNaN(imp) || imp === 0) {
@@ -332,7 +383,7 @@
 
     currentClient.items.push({ med, imp });
 
-    document.getElementById('importe').value = "";
+    resetNumpad();
     document.getElementById('medio').value = "EFECTIVO";
 
     renderItems();
