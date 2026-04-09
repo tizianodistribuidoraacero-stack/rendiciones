@@ -236,7 +236,7 @@
       <div class="badge" id="clientBadge"><span class="dot"></span><span></span></div>
 
       <label>Importe del ítem</label>
-      <input type="number" id="importe" placeholder="0.00" inputmode="decimal" />
+      <input type="text" id="importe" placeholder="0,00" inputmode="decimal" oninput="this.value=this.value.replace(/[^0-9.,]/g,'')" />
 
       <label>Medio</label>
       <select id="medio">
@@ -321,7 +321,8 @@
       return;
     }
 
-    const imp = parseFloat(document.getElementById('importe').value);
+    const rawImp = document.getElementById('importe').value.trim().replace(/\./g, '').replace(',', '.');
+    const imp = parseFloat(rawImp);
     const med = document.getElementById('medio').value;
 
     if (isNaN(imp) || imp === 0) {
