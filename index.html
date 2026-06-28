@@ -443,8 +443,9 @@
     return `rendicion-${new Date().toLocaleDateString("es-AR").replaceAll("/", "-")}.xlsx`;
   }
 
-  async function fetchPlanillaBlob() {
-    const resp = await fetch("/generar", {
+  async function fetchPlanillaBlob(forEmail = false) {
+    const url = forEmail ? "/generar?inline=1" : "/generar";
+    const resp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ clients })
@@ -505,9 +506,9 @@
       return resp.ok;
     }
 
-    // Celular: abre Gmail/Outlook con el archivo adjunto, sin descargar
+    // Celular / Chrome: abre Gmail/Outlook con el archivo adjunto, sin descargar
     if (navigator.share) {
-      const result = await fetchPlanillaBlob();
+      const result = await fetchPlanillaBlob(true);
       if (!result) return;
 
       const file = new File(
@@ -523,12 +524,10 @@
       };
 
       try {
-        if (!navigator.canShare || navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          await sendThroughServer(true);
-          resetSession();
-          return;
-        }
+        await navigator.share(shareData);
+        sendThroughServer(true);
+        resetSession();
+        return;
       } catch (err) {
         if (err.name === "AbortError") return;
       }

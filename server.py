@@ -101,16 +101,16 @@ def clients_summary(clients):
     return "\n".join(lines)
 
 def send_rendicion_email(to_addrs, cc_addrs, clients, excel_bytes, filename):
-    smtp_host = os.environ.get("SMTP_HOST")
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ.get("SMTP_USER")
+    smtp_user = os.environ.get("SMTP_USER", "nicolasd@distribuidoracero.com.ar")
     smtp_password = os.environ.get("SMTP_PASSWORD")
     mail_from = os.environ.get("MAIL_FROM", smtp_user)
 
-    if not smtp_host or not smtp_user or not smtp_password:
+    if not smtp_password:
         raise RuntimeError(
             "SMTP no configurado en el servidor. "
-            "Configurá SMTP_HOST, SMTP_USER y SMTP_PASSWORD en Render."
+            "Configurá SMTP_PASSWORD en Render (contraseña de aplicación de Gmail)."
         )
 
     fecha = datetime.now().strftime("%d/%m/%Y")
@@ -158,8 +158,19 @@ def home():
 def health():
     return "OK", 200
 
+@app.get("/mail-status")
+def mail_status():
+    configured = bool(os.environ.get("SMTP_PASSWORD"))
+    return jsonify({
+        "smtp_configured": configured,
+        "smtp_host": os.environ.get("SMTP_HOST", "smtp.gmail.com"),
+        "smtp_user": os.environ.get("SMTP_USER", "nicolasd@distribuidoracero.com.ar"),
+        "mail_cc": MAIL_CC,
+    }), 200
+
 @app.post("/generar")
 def generar():
+    inline = request.args.get("inline") == "1"
     try:
         data = request.get_json(force=True, silent=True)
         if not data:
@@ -174,7 +185,7 @@ def generar():
 
         return send_file(
             bio,
-            as_attachment=True,
+            as_attachment=not inline,
             download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
