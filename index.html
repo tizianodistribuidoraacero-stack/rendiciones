@@ -492,45 +492,61 @@
   async function sendViaEmail() {
     if (!finalizePendingClient()) return;
 
-    const result = await fetchPlanillaBlob();
-    if (!result) return;
-
-    const { blob, filename } = result;
+    const CC_EMAIL = "nicolasd@distribuidoracero.com.ar";
     const fecha = new Date().toLocaleDateString("es-AR");
-    const clientList = clients.map(c =>
-      `${c.modal} · ${c.cli} (${c.items.length} ítem${c.items.length === 1 ? "" : "s"})`
-    ).join("\n");
+    const clientsSnapshot = JSON.parse(JSON.stringify(clients));
 
-    const file = new File(
-      [blob],
-      filename,
-      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-    );
+    async function sendThroughServer(ccOnly) {
+      const resp = await fetch("/enviar-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clients: clientsSnapshot, cc_only: ccOnly })
+      });
+      return resp.ok;
+    }
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    // Celular: abre Gmail/Outlook con el archivo adjunto, sin descargar
+    if (navigator.share) {
+      const result = await fetchPlanillaBlob();
+      if (!result) return;
+
+      const file = new File(
+        [result.blob],
+        result.filename,
+        { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+      );
+
+      const shareData = {
+        files: [file],
+        title: "Rendición Distribuidora Acero",
+        text: `Planilla de rendición del ${fecha}\n\nCopia obligatoria: ${CC_EMAIL}`
+      };
+
       try {
-        await navigator.share({
-          files: [file],
-          title: "Rendición Distribuidora Acero",
-          text: `Planilla de rendición del ${fecha}`
-        });
-        resetSession();
-        return;
+        if (!navigator.canShare || navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          await sendThroughServer(true);
+          resetSession();
+          return;
+        }
       } catch (err) {
         if (err.name === "AbortError") return;
       }
     }
 
-    downloadBlob(blob, filename);
+    // Escritorio: envío directo desde el servidor (adjunto + copia a Nicolás)
+    const ok = await sendThroughServer(false);
+    if (ok) {
+      alert(`Planilla enviada por mail con copia a ${CC_EMAIL}.`);
+      resetSession();
+      return;
+    }
 
-    const subject = encodeURIComponent(`Rendición Distribuidora Acero - ${fecha}`);
-    const body = encodeURIComponent(
-      `Adjunto planilla de rendición.\n\nClientes incluidos:\n${clientList}\n\n` +
-      `(Si el archivo no se adjuntó solo, agregalo desde la descarga: ${filename})`
+    alert(
+      "No se pudo enviar el mail automáticamente.\n\n" +
+      "Probá desde el celular o configurá SMTP en Render " +
+      "(SMTP_HOST, SMTP_USER, SMTP_PASSWORD)."
     );
-
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    resetSession();
   }
 </script>
 </body>
