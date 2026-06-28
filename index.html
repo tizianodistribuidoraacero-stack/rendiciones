@@ -289,7 +289,8 @@
       <div class="btnRow">
         <button class="btn btnGreen" onclick="resetNumpad(); goTo(3)">+ Agregar otro ítem a este cliente</button>
         <button class="btn btnPrimary" onclick="finishClient()">✅ Terminar cliente y cargar otro</button>
-        <button class="btn btnBlue" onclick="generateExcel()">Finalizar y Descargar Planilla</button>
+        <button class="btn btnBlue" onclick="downloadPlanilla()">Descargar planilla</button>
+        <button class="btn btnPrimary" onclick="sendViaEmail()">Enviar directamente vía mail</button>
         <button class="btn btnGhost" onclick="goTo(3)">Volver</button>
       </div>
     </div>
@@ -424,7 +425,7 @@
     goTo(1);
   }
 
-  async function generateExcel() {
+  function finalizePendingClient() {
     if (currentClient && currentClient.items.length > 0) {
       clients.push(currentClient);
       currentClient = null;
@@ -433,9 +434,16 @@
 
     if (clients.length === 0) {
       alert("No hay clientes cargados.");
-      return;
+      return false;
     }
+    return true;
+  }
 
+  function getPlanillaFilename() {
+    return `rendicion-${new Date().toLocaleDateString("es-AR").replaceAll("/", "-")}.xlsx`;
+  }
+
+  async function fetchPlanillaBlob() {
     const resp = await fetch("/generar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -445,25 +453,84 @@
     if (!resp.ok) {
       const txt = await resp.text();
       alert("Error generando Excel:\n" + txt);
-      return;
+      return null;
     }
 
     const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
+    return { blob, filename: getPlanillaFilename() };
+  }
 
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `rendicion-${new Date().toLocaleDateString("es-AR").replaceAll("/","-")}.xlsx`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
 
+  function resetSession() {
     clients = [];
     currentClient = null;
     document.getElementById('count').innerText = "0";
     document.getElementById('cliente').value = "";
     goTo(1);
+  }
+
+  async function downloadPlanilla() {
+    if (!finalizePendingClient()) return;
+
+    const result = await fetchPlanillaBlob();
+    if (!result) return;
+
+    downloadBlob(result.blob, result.filename);
+    resetSession();
+  }
+
+  async function sendViaEmail() {
+    if (!finalizePendingClient()) return;
+
+    const result = await fetchPlanillaBlob();
+    if (!result) return;
+
+    const { blob, filename } = result;
+    const fecha = new Date().toLocaleDateString("es-AR");
+    const clientList = clients.map(c =>
+      `${c.modal} · ${c.cli} (${c.items.length} ítem${c.items.length === 1 ? "" : "s"})`
+    ).join("\n");
+
+    const file = new File(
+      [blob],
+      filename,
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+    );
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: "Rendición Distribuidora Acero",
+          text: `Planilla de rendición del ${fecha}`
+        });
+        resetSession();
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return;
+      }
+    }
+
+    downloadBlob(blob, filename);
+
+    const subject = encodeURIComponent(`Rendición Distribuidora Acero - ${fecha}`);
+    const body = encodeURIComponent(
+      `Adjunto planilla de rendición.\n\nClientes incluidos:\n${clientList}\n\n` +
+      `(Si el archivo no se adjuntó solo, agregalo desde la descarga: ${filename})`
+    );
+
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    resetSession();
   }
 </script>
 </body>
