@@ -1,14 +1,8 @@
-from flask import Flask, request, send_file, send_from_directory, jsonify
+from flask import Flask, request, send_file, send_from_directory
 from openpyxl import load_workbook
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email import encoders
-import base64
 import io
 import os
-import smtplib
 import traceback
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,9 +26,6 @@ MEDIO_TO_COL = {
     "RETENCIONES": "K",
     "AJUSTE": "J",
 }
-
-DEFAULT_MAIL_TO = "nicolasd@distribuidoracero.com.ar"
-MAIL_BODY = "Adjunto planilla de rendición."
 
 
 def find_next_row(ws, start, end):
@@ -97,95 +88,6 @@ def build_excel_from_clients(clients):
     return bio.getvalue(), filename
 
 
-def mail_is_configured():
-    return bool(
-        os.environ.get("SMTP_PASSWORD")
-        or os.environ.get("RESEND_API_KEY")
-    )
-
-
-def send_via_smtp(to_addrs, subject, excel_bytes, filename):
-    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ.get("SMTP_USER", DEFAULT_MAIL_TO)
-    smtp_password = os.environ.get("SMTP_PASSWORD")
-    mail_from = os.environ.get("MAIL_FROM", smtp_user)
-
-    if not smtp_password:
-        raise RuntimeError("SMTP_PASSWORD no configurado en Render.")
-
-    msg = MIMEMultipart()
-    msg["From"] = mail_from
-    msg["To"] = ", ".join(to_addrs)
-    msg["Subject"] = subject
-    msg.attach(MIMEText(MAIL_BODY, "plain", "utf-8"))
-
-    part = MIMEBase(
-        "application",
-        "vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-    part.set_payload(excel_bytes)
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
-    msg.attach(part)
-
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.sendmail(mail_from, to_addrs, msg.as_string())
-
-
-def send_via_resend(to_addrs, subject, excel_bytes, filename):
-    api_key = os.environ.get("RESEND_API_KEY")
-    if not api_key:
-        raise RuntimeError("RESEND_API_KEY no configurado en Render.")
-
-    import urllib.request
-    import json
-
-    mail_from = os.environ.get(
-        "MAIL_FROM",
-        "Rendiciones <onboarding@resend.dev>",
-    )
-
-    payload = {
-        "from": mail_from,
-        "to": to_addrs,
-        "subject": subject,
-        "text": MAIL_BODY,
-        "attachments": [
-            {
-                "filename": filename,
-                "content": base64.b64encode(excel_bytes).decode("ascii"),
-            }
-        ],
-    }
-
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        if resp.status >= 400:
-            raise RuntimeError(resp.read().decode("utf-8", errors="replace"))
-
-
-def send_rendicion_email(to_addrs, excel_bytes, filename):
-    fecha = datetime.now().strftime("%d/%m/%Y")
-    subject = f"Rendición Distribuidora Acero - {fecha}"
-
-    if os.environ.get("RESEND_API_KEY"):
-        send_via_resend(to_addrs, subject, excel_bytes, filename)
-    else:
-        send_via_smtp(to_addrs, subject, excel_bytes, filename)
-
-
 @app.get("/")
 def home():
     if not os.path.exists(INDEX_HTML):
@@ -200,14 +102,6 @@ def home():
 @app.get("/health")
 def health():
     return "OK", 200
-
-
-@app.get("/mail-status")
-def mail_status():
-    return jsonify({
-        "configured": mail_is_configured(),
-        "mail_to": os.environ.get("MAIL_TO", DEFAULT_MAIL_TO),
-    }), 200
 
 
 @app.post("/generar")
@@ -235,35 +129,6 @@ def generar():
         if inline:
             response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
         return response
-
-    except Exception:
-        return "ERROR:\n" + traceback.format_exc(), 500
-
-
-@app.post("/enviar-mail")
-def enviar_mail():
-    try:
-        if not mail_is_configured():
-            return (
-                "El envío de mail no está configurado en el servidor.\n"
-                "Agregá SMTP_PASSWORD en Render (contraseña de aplicación de Gmail).",
-                503,
-            )
-
-        data = request.get_json(force=True, silent=True)
-        if not data:
-            return "JSON inválido", 400
-
-        clients = data.get("clients", [])
-        if not clients:
-            return "Sin datos", 400
-
-        excel_bytes, filename = build_excel_from_clients(clients)
-        mail_to = (data.get("to") or os.environ.get("MAIL_TO") or DEFAULT_MAIL_TO).strip()
-        to_addrs = [mail_to]
-
-        send_rendicion_email(to_addrs, excel_bytes, filename)
-        return jsonify({"ok": True, "to": mail_to}), 200
 
     except Exception:
         return "ERROR:\n" + traceback.format_exc(), 500

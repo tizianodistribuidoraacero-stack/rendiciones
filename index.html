@@ -499,29 +499,61 @@
     if (!finalizePendingClient()) return;
 
     const btn = document.getElementById("btnSendMail");
-    const clientsSnapshot = JSON.parse(JSON.stringify(clients));
     const originalText = btn.textContent;
 
     btn.disabled = true;
-    btn.textContent = "Enviando mail...";
+    btn.textContent = "Preparando mail...";
 
     try {
-      const resp = await fetch("/enviar-mail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clients: clientsSnapshot })
-      });
+      const result = await fetchPlanillaBlob(true);
+      if (!result) return;
 
-      if (resp.ok) {
-        alert("Planilla enviada por mail con el archivo adjunto.");
-        resetSession();
+      const { blob, filename } = result;
+      if (!blob || blob.size < 100) {
+        alert("Error: no se pudo generar la planilla.");
         return;
       }
 
-      const errText = await resp.text();
-      alert("No se pudo enviar el mail:\n\n" + errText);
+      const buffer = await blob.arrayBuffer();
+      const mimeTypes = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream"
+      ];
+
+      if (!navigator.share) {
+        alert("Abrí esta página en Chrome o Safari en el celular para adjuntar la planilla al mail.");
+        return;
+      }
+
+      for (const mimeType of mimeTypes) {
+        const file = new File([buffer], filename, {
+          type: mimeType,
+          lastModified: Date.now()
+        });
+        const shareData = { files: [file] };
+
+        try {
+          if (navigator.canShare && !navigator.canShare(shareData)) continue;
+          await navigator.share(shareData);
+          resetSession();
+          return;
+        } catch (err) {
+          if (err.name === "AbortError") return;
+        }
+      }
+
+      const file = new File([buffer], filename, {
+        type: mimeTypes[0],
+        lastModified: Date.now()
+      });
+      await navigator.share({ files: [file] });
+      resetSession();
     } catch (err) {
-      alert("Error de conexión al enviar el mail. Probá de nuevo.");
+      if (err.name === "AbortError") return;
+      alert(
+        "No se pudo abrir el mail con la planilla adjunta.\n\n" +
+        "Probá desde Chrome en el celular, elegí Gmail u Outlook y agregá los destinatarios ahí."
+      );
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;
