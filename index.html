@@ -176,6 +176,11 @@
     .btnGhost{ background:var(--gray); color:var(--grayText); }
 
     .btn:hover{ filter: brightness(.98); }
+    .btn:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+      transform:none;
+    }
 
     /* Footer */
     .footer{
@@ -290,7 +295,7 @@
         <button class="btn btnGreen" onclick="resetNumpad(); goTo(3)">+ Agregar otro ítem a este cliente</button>
         <button class="btn btnPrimary" onclick="finishClient()">✅ Terminar cliente y cargar otro</button>
         <button class="btn btnBlue" onclick="downloadPlanilla()">Descargar planilla</button>
-        <button class="btn btnPrimary" onclick="sendViaEmail()">Enviar directamente vía mail</button>
+        <button class="btn btnPrimary" id="btnSendMail" onclick="sendViaEmail()">Enviar directamente vía mail</button>
         <button class="btn btnGhost" onclick="goTo(3)">Volver</button>
       </div>
     </div>
@@ -494,78 +499,37 @@
     if (!finalizePendingClient()) return;
 
     const CC_EMAIL = "nicolasd@distribuidoracero.com.ar";
-    const fecha = new Date().toLocaleDateString("es-AR");
-    const mailBody = "Adjunto planilla de rendición.";
+    const btn = document.getElementById("btnSendMail");
+    const clientsSnapshot = JSON.parse(JSON.stringify(clients));
+    const originalText = btn.textContent;
 
-    const result = await fetchPlanillaBlob(true);
-    if (!result) return;
-
-    const { blob, filename } = result;
-    if (!blob || blob.size < 100) {
-      alert("Error: no se pudo generar la planilla.");
-      return;
-    }
-
-    const buffer = await blob.arrayBuffer();
-    const mailtoUrl =
-      `mailto:?cc=${encodeURIComponent(CC_EMAIL)}` +
-      `&subject=${encodeURIComponent(`Rendición Distribuidora Acero - ${fecha}`)}` +
-      `&body=${encodeURIComponent(mailBody)}`;
-
-    async function tryShareWithAttachment() {
-      if (!navigator.share) return false;
-
-      const mimeTypes = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/octet-stream"
-      ];
-
-      for (const mimeType of mimeTypes) {
-        const file = new File([buffer], filename, {
-          type: mimeType,
-          lastModified: Date.now()
-        });
-        const shareData = { files: [file] };
-
-        try {
-          if (navigator.canShare && !navigator.canShare(shareData)) continue;
-          await navigator.share(shareData);
-          return true;
-        } catch (err) {
-          if (err.name === "AbortError") throw err;
-        }
-      }
-
-      try {
-        const file = new File([buffer], filename, {
-          type: mimeTypes[0],
-          lastModified: Date.now()
-        });
-        await navigator.share({ files: [file] });
-        return true;
-      } catch (err) {
-        if (err.name === "AbortError") throw err;
-        return false;
-      }
-    }
+    btn.disabled = true;
+    btn.textContent = "Enviando mail...";
 
     try {
-      if (await tryShareWithAttachment()) {
+      const resp = await fetch("/enviar-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clients: clientsSnapshot })
+      });
+
+      if (resp.ok) {
+        alert(
+          "Planilla enviada por mail con el archivo adjunto.\n\n" +
+          `Copia: ${CC_EMAIL}`
+        );
         resetSession();
         return;
       }
-    } catch (err) {
-      if (err.name === "AbortError") return;
-    }
 
-    // mailto no puede adjuntar archivos: avisar antes de abrir el mail vacío
-    alert(
-      "Tu navegador no permite adjuntar la planilla automáticamente.\n\n" +
-      "Abrí esta página desde Chrome en el celular y volvé a intentar, " +
-      "o usá el botón Descargar planilla y adjuntala manualmente."
-    );
-    window.location.href = mailtoUrl;
-    resetSession();
+      const errText = await resp.text();
+      alert("No se pudo enviar el mail:\n\n" + errText);
+    } catch (err) {
+      alert("Error de conexión al enviar el mail. Probá de nuevo.");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
   }
 </script>
 </body>

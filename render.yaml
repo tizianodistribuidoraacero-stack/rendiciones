@@ -11,3 +11,15 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: nicolasd@distribuidoracero.com.ar
+      - key: MAIL_FROM
+        value: nicolasd@distribuidoracero.com.ar
+      - key: MAIL_TO
+        value: nicolasd@distribuidoracero.com.ar
+      - key: SMTP_PASSWORD
+        sync: false
