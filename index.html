@@ -498,7 +498,6 @@
   async function sendViaEmail() {
     if (!finalizePendingClient()) return;
 
-    const CC_EMAIL = "nicolasd@distribuidoracero.com.ar";
     const btn = document.getElementById("btnSendMail");
     const clientsSnapshot = JSON.parse(JSON.stringify(clients));
     const originalText = btn.textContent;
@@ -514,10 +513,7 @@
       });
 
       if (resp.ok) {
-        alert(
-          "Planilla enviada por mail con el archivo adjunto.\n\n" +
-          `Copia: ${CC_EMAIL}`
-        );
+        alert("Planilla enviada por mail con el archivo adjunto.");
         resetSession();
         return;
       }

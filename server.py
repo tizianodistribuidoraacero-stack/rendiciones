@@ -33,7 +33,7 @@ MEDIO_TO_COL = {
     "AJUSTE": "J",
 }
 
-MAIL_CC = "nicolasd@distribuidoracero.com.ar"
+DEFAULT_MAIL_TO = "nicolasd@distribuidoracero.com.ar"
 MAIL_BODY = "Adjunto planilla de rendición."
 
 
@@ -104,10 +104,10 @@ def mail_is_configured():
     )
 
 
-def send_via_smtp(to_addrs, cc_addrs, subject, excel_bytes, filename):
+def send_via_smtp(to_addrs, subject, excel_bytes, filename):
     smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ.get("SMTP_USER", MAIL_CC)
+    smtp_user = os.environ.get("SMTP_USER", DEFAULT_MAIL_TO)
     smtp_password = os.environ.get("SMTP_PASSWORD")
     mail_from = os.environ.get("MAIL_FROM", smtp_user)
 
@@ -117,8 +117,6 @@ def send_via_smtp(to_addrs, cc_addrs, subject, excel_bytes, filename):
     msg = MIMEMultipart()
     msg["From"] = mail_from
     msg["To"] = ", ".join(to_addrs)
-    if cc_addrs:
-        msg["Cc"] = ", ".join(cc_addrs)
     msg["Subject"] = subject
     msg.attach(MIMEText(MAIL_BODY, "plain", "utf-8"))
 
@@ -131,14 +129,13 @@ def send_via_smtp(to_addrs, cc_addrs, subject, excel_bytes, filename):
     part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
     msg.attach(part)
 
-    recipients = list(dict.fromkeys([*to_addrs, *cc_addrs]))
     with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
         server.starttls()
         server.login(smtp_user, smtp_password)
-        server.sendmail(mail_from, recipients, msg.as_string())
+        server.sendmail(mail_from, to_addrs, msg.as_string())
 
 
-def send_via_resend(to_addrs, cc_addrs, subject, excel_bytes, filename):
+def send_via_resend(to_addrs, subject, excel_bytes, filename):
     api_key = os.environ.get("RESEND_API_KEY")
     if not api_key:
         raise RuntimeError("RESEND_API_KEY no configurado en Render.")
@@ -163,8 +160,6 @@ def send_via_resend(to_addrs, cc_addrs, subject, excel_bytes, filename):
             }
         ],
     }
-    if cc_addrs:
-        payload["cc"] = cc_addrs
 
     req = urllib.request.Request(
         "https://api.resend.com/emails",
@@ -181,14 +176,14 @@ def send_via_resend(to_addrs, cc_addrs, subject, excel_bytes, filename):
             raise RuntimeError(resp.read().decode("utf-8", errors="replace"))
 
 
-def send_rendicion_email(to_addrs, cc_addrs, excel_bytes, filename):
+def send_rendicion_email(to_addrs, excel_bytes, filename):
     fecha = datetime.now().strftime("%d/%m/%Y")
     subject = f"Rendición Distribuidora Acero - {fecha}"
 
     if os.environ.get("RESEND_API_KEY"):
-        send_via_resend(to_addrs, cc_addrs, subject, excel_bytes, filename)
+        send_via_resend(to_addrs, subject, excel_bytes, filename)
     else:
-        send_via_smtp(to_addrs, cc_addrs, subject, excel_bytes, filename)
+        send_via_smtp(to_addrs, subject, excel_bytes, filename)
 
 
 @app.get("/")
@@ -211,7 +206,7 @@ def health():
 def mail_status():
     return jsonify({
         "configured": mail_is_configured(),
-        "mail_cc": MAIL_CC,
+        "mail_to": os.environ.get("MAIL_TO", DEFAULT_MAIL_TO),
     }), 200
 
 
@@ -264,12 +259,11 @@ def enviar_mail():
             return "Sin datos", 400
 
         excel_bytes, filename = build_excel_from_clients(clients)
-        mail_to = (data.get("to") or os.environ.get("MAIL_TO") or MAIL_CC).strip()
+        mail_to = (data.get("to") or os.environ.get("MAIL_TO") or DEFAULT_MAIL_TO).strip()
         to_addrs = [mail_to]
-        cc_addrs = [] if mail_to.lower() == MAIL_CC.lower() else [MAIL_CC]
 
-        send_rendicion_email(to_addrs, cc_addrs, excel_bytes, filename)
-        return jsonify({"ok": True, "to": mail_to, "cc": MAIL_CC}), 200
+        send_rendicion_email(to_addrs, excel_bytes, filename)
+        return jsonify({"ok": True, "to": mail_to}), 200
 
     except Exception:
         return "ERROR:\n" + traceback.format_exc(), 500
