@@ -113,12 +113,16 @@ def generar():
         excel_bytes, filename = build_excel_from_clients(clients)
         bio = io.BytesIO(excel_bytes)
 
-        return send_file(
+        response = send_file(
             bio,
             as_attachment=not inline,
             download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            max_age=0,
         )
+        if inline:
+            response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
 
     except Exception:
         return "ERROR:\n" + traceback.format_exc(), 500

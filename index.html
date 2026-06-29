@@ -495,43 +495,75 @@
 
     const CC_EMAIL = "nicolasd@distribuidoracero.com.ar";
     const fecha = new Date().toLocaleDateString("es-AR");
-    const clientList = clients.map(c =>
-      `${c.modal} · ${c.cli} (${c.items.length} ítem${c.items.length === 1 ? "" : "s"})`
-    ).join("\n");
+    const mailBody = "Adjunto planilla de rendición.";
 
     const result = await fetchPlanillaBlob(true);
     if (!result) return;
 
     const { blob, filename } = result;
-    const file = new File(
-      [blob],
-      filename,
-      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-    );
+    if (!blob || blob.size < 100) {
+      alert("Error: no se pudo generar la planilla.");
+      return;
+    }
 
+    const buffer = await blob.arrayBuffer();
     const mailtoUrl =
       `mailto:?cc=${encodeURIComponent(CC_EMAIL)}` +
       `&subject=${encodeURIComponent(`Rendición Distribuidora Acero - ${fecha}`)}` +
-      `&body=${encodeURIComponent(
-        `Adjunto planilla de rendición.\n\nClientes incluidos:\n${clientList}`
-      )}`;
+      `&body=${encodeURIComponent(mailBody)}`;
 
-    // Celular / Chrome: abre el mail del dispositivo con el archivo adjunto, sin descargar
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: "Rendición Distribuidora Acero",
-          text: `Planilla de rendición del ${fecha}`
+    async function tryShareWithAttachment() {
+      if (!navigator.share) return false;
+
+      const mimeTypes = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream"
+      ];
+
+      for (const mimeType of mimeTypes) {
+        const file = new File([buffer], filename, {
+          type: mimeType,
+          lastModified: Date.now()
         });
-        resetSession();
-        return;
+        const shareData = { files: [file] };
+
+        try {
+          if (navigator.canShare && !navigator.canShare(shareData)) continue;
+          await navigator.share(shareData);
+          return true;
+        } catch (err) {
+          if (err.name === "AbortError") throw err;
+        }
+      }
+
+      try {
+        const file = new File([buffer], filename, {
+          type: mimeTypes[0],
+          lastModified: Date.now()
+        });
+        await navigator.share({ files: [file] });
+        return true;
       } catch (err) {
-        if (err.name === "AbortError") return;
+        if (err.name === "AbortError") throw err;
+        return false;
       }
     }
 
-    // Escritorio: abre Gmail/Outlook con copia a Nicolás ya cargada (sin descargar)
+    try {
+      if (await tryShareWithAttachment()) {
+        resetSession();
+        return;
+      }
+    } catch (err) {
+      if (err.name === "AbortError") return;
+    }
+
+    // mailto no puede adjuntar archivos: avisar antes de abrir el mail vacío
+    alert(
+      "Tu navegador no permite adjuntar la planilla automáticamente.\n\n" +
+      "Abrí esta página desde Chrome en el celular y volvé a intentar, " +
+      "o usá el botón Descargar planilla y adjuntala manualmente."
+    );
     window.location.href = mailtoUrl;
     resetSession();
   }
